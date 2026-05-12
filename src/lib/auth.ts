@@ -1,3 +1,4 @@
+import 'server-only';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import type { JWTPayload } from '@/types';
