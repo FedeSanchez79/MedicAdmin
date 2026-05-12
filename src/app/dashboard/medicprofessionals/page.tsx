@@ -3,23 +3,19 @@ import Header from '@/components/Header';
 import { getMedicProfessionalsDb } from '@/lib/db';
 import type { Professional } from '@/types';
 
-function getProfessionals(): Professional[] {
-  const db = getMedicProfessionalsDb();
-  return db.prepare(`
-    SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role, u.created_at,
-           pp.especialidad, pp.matricula, pp.institucion
-    FROM users u
-    LEFT JOIN professional_profiles pp ON pp.user_id = u.id
-    ORDER BY u.created_at DESC
-  `).all() as Professional[];
-}
-
-export default function MedicProfessionalsPage() {
+export default async function MedicProfessionalsPage() {
   let professionals: Professional[] = [];
   let dbError = '';
 
   try {
-    professionals = getProfessionals();
+    const db = await getMedicProfessionalsDb();
+    professionals = db.all(
+      `SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role, u.created_at,
+              pp.especialidad, pp.matricula, pp.institucion
+       FROM users u
+       LEFT JOIN professional_profiles pp ON pp.user_id = u.id
+       ORDER BY u.created_at DESC`
+    ) as unknown as Professional[];
   } catch (e: unknown) {
     dbError = e instanceof Error ? e.message : String(e);
   }
@@ -57,16 +53,12 @@ export default function MedicProfessionalsPage() {
             <tbody className="divide-y divide-borde">
               {professionals.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gris">
-                    No hay usuarios registrados.
-                  </td>
+                  <td colSpan={7} className="px-4 py-8 text-center text-gris">No hay usuarios registrados.</td>
                 </tr>
               ) : (
                 professionals.map((p) => (
                   <tr key={p.id} className="hover:bg-fondo transition">
-                    <td className="px-4 py-3 font-medium text-texto">
-                      {p.firstName} {p.lastName}
-                    </td>
+                    <td className="px-4 py-3 font-medium text-texto">{p.firstName} {p.lastName}</td>
                     <td className="px-4 py-3 text-gris">{p.email}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
@@ -80,10 +72,7 @@ export default function MedicProfessionalsPage() {
                       {new Date(p.created_at).toLocaleDateString('es-AR')}
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/dashboard/medicprofessionals/${p.id}`}
-                        className="text-azul hover:text-azul-hover text-xs font-semibold"
-                      >
+                      <Link href={`/dashboard/medicprofessionals/${p.id}`} className="text-azul hover:text-azul-hover text-xs font-semibold">
                         Editar
                       </Link>
                     </td>

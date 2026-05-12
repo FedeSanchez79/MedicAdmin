@@ -1,20 +1,6 @@
 import { getAdminDb } from '@/lib/db';
 import Header from '@/components/Header';
 
-function getStats() {
-  try {
-    const db = getAdminDb();
-    const totalAudit = (db.prepare('SELECT COUNT(*) as c FROM audit_log').get() as { c: number }).c;
-    const lastEntries = db.prepare(`
-      SELECT admin_username, proyecto, accion, tabla, created_at
-      FROM audit_log ORDER BY created_at DESC LIMIT 5
-    `).all() as { admin_username: string; proyecto: string; accion: string; tabla: string; created_at: string }[];
-    return { totalAudit, lastEntries };
-  } catch {
-    return { totalAudit: 0, lastEntries: [] };
-  }
-}
-
 const projectColors: Record<string, string> = {
   medicdata: 'bg-azul-suave text-azul',
   medicprofessionals: 'bg-verde-bg text-verde',
@@ -26,8 +12,20 @@ const accionColors: Record<string, string> = {
   ELIMINAR: 'bg-error-bg text-error',
 };
 
-export default function DashboardPage() {
-  const { totalAudit, lastEntries } = getStats();
+export default async function DashboardPage() {
+  let totalAudit = 0;
+  let lastEntries: { admin_username: string; proyecto: string; accion: string; tabla: string; created_at: string }[] = [];
+
+  try {
+    const db = await getAdminDb();
+    const row = db.get('SELECT COUNT(*) as c FROM audit_log');
+    totalAudit = row ? Number(row.c) : 0;
+    lastEntries = db.all(
+      'SELECT admin_username, proyecto, accion, tabla, created_at FROM audit_log ORDER BY created_at DESC LIMIT 5'
+    ) as typeof lastEntries;
+  } catch {
+    // DB not yet initialized
+  }
 
   const statCards = [
     {
@@ -56,10 +54,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <Header
-        title="Dashboard"
-        subtitle="Resumen general del sistema"
-      />
+      <Header title="Dashboard" subtitle="Resumen general del sistema" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         {statCards.map((card) => (

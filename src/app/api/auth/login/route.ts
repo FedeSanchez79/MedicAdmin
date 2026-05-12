@@ -6,13 +6,12 @@ import { signToken, COOKIE_NAME } from '@/lib/auth';
 export async function POST(req: NextRequest) {
   try {
     const { username, password } = await req.json();
-
     if (!username || !password) {
       return NextResponse.json({ error: 'Usuario y contraseña requeridos' }, { status: 400 });
     }
 
-    const db = getAdminDb();
-    const admin = db.prepare('SELECT * FROM admin_users WHERE username = ?').get(username) as
+    const db = await getAdminDb();
+    const admin = db.get('SELECT id, username, password, nombre FROM admin_users WHERE username = ?', [username]) as
       { id: number; username: string; password: string; nombre: string } | undefined;
 
     if (!admin) {
@@ -25,7 +24,6 @@ export async function POST(req: NextRequest) {
     }
 
     const token = signToken({ adminId: admin.id, username: admin.username, nombre: admin.nombre });
-
     const response = NextResponse.json({ ok: true, nombre: admin.nombre });
     response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
@@ -34,7 +32,6 @@ export async function POST(req: NextRequest) {
       maxAge: 60 * 60 * 8,
       path: '/',
     });
-
     return response;
   } catch (e: unknown) {
     console.error(e);

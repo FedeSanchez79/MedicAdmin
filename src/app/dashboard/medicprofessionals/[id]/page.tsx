@@ -4,24 +4,22 @@ import { getMedicProfessionalsDb } from '@/lib/db';
 import type { Professional } from '@/types';
 import ProfessionalEditForm from './ProfessionalEditForm';
 
-function getProfessional(id: number): Professional | null {
-  const db = getMedicProfessionalsDb();
-  return db.prepare(`
-    SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role, u.created_at,
-           pp.especialidad, pp.matricula, pp.institucion
-    FROM users u
-    LEFT JOIN professional_profiles pp ON pp.user_id = u.id
-    WHERE u.id = ?
-  `).get(id) as Professional | null;
-}
-
-export default function ProfessionalDetailPage({ params }: { params: { id: string } }) {
+export default async function ProfessionalDetailPage({ params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10);
   if (isNaN(id)) notFound();
 
   let professional: Professional | null = null;
+
   try {
-    professional = getProfessional(id);
+    const db = await getMedicProfessionalsDb();
+    professional = db.get(
+      `SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role, u.created_at,
+              pp.especialidad, pp.matricula, pp.institucion
+       FROM users u
+       LEFT JOIN professional_profiles pp ON pp.user_id = u.id
+       WHERE u.id = ?`,
+      [id]
+    ) as unknown as Professional | null ?? null;
   } catch {
     return (
       <div className="bg-error-bg border border-error/20 rounded-xl p-5 text-sm text-error">

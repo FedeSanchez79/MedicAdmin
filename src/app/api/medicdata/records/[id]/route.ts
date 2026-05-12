@@ -8,22 +8,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const body = await req.json();
-    const { tipo, titulo, descripcion, fecha_registro, activo } = body;
+    const { tipo, titulo, descripcion, fecha_registro, activo } = await req.json();
+    const db = await getMedicDataDb();
 
-    const db = getMedicDataDb();
-    const previous = db.prepare(
-      'SELECT id, tipo, titulo, descripcion, fecha_registro, activo FROM medical_records WHERE id = ?'
-    ).get(params.id);
-
+    const previous = db.get(
+      'SELECT id, tipo, titulo, descripcion, fecha_registro, activo FROM medical_records WHERE id = ?',
+      [params.id]
+    );
     if (!previous) return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
 
-    db.prepare(`
-      UPDATE medical_records SET tipo = ?, titulo = ?, descripcion = ?, fecha_registro = ?, activo = ?
-      WHERE id = ?
-    `).run(tipo, titulo, descripcion || null, fecha_registro || null, activo ? 1 : 0, params.id);
+    db.run(
+      'UPDATE medical_records SET tipo = ?, titulo = ?, descripcion = ?, fecha_registro = ?, activo = ? WHERE id = ?',
+      [tipo, titulo, descripcion || null, fecha_registro || null, activo ? 1 : 0, params.id]
+    );
 
-    registrarAuditoria({
+    await registrarAuditoria({
       adminId: admin.adminId,
       adminUsername: admin.username,
       proyecto: 'medicdata',

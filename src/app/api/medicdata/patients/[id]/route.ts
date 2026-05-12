@@ -5,12 +5,11 @@ import { registrarAuditoria } from '@/lib/audit';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const db = getMedicDataDb();
-    const patient = db.prepare(`
-      SELECT id, firstName, lastName, phone, email, username, role, created_at
-      FROM users WHERE id = ?
-    `).get(params.id);
-
+    const db = await getMedicDataDb();
+    const patient = db.get(
+      'SELECT id, firstName, lastName, phone, email, username, role, created_at FROM users WHERE id = ?',
+      [params.id]
+    );
     if (!patient) return NextResponse.json({ error: 'Paciente no encontrado' }, { status: 404 });
     return NextResponse.json(patient);
   } catch (e: unknown) {
@@ -23,22 +22,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const body = await req.json();
-    const { firstName, lastName, email, phone, username } = body;
+    const { firstName, lastName, email, phone, username } = await req.json();
+    const db = await getMedicDataDb();
 
-    const db = getMedicDataDb();
-    const previous = db.prepare(
-      'SELECT id, firstName, lastName, phone, email, username FROM users WHERE id = ?'
-    ).get(params.id);
-
+    const previous = db.get(
+      'SELECT id, firstName, lastName, phone, email, username FROM users WHERE id = ?',
+      [params.id]
+    );
     if (!previous) return NextResponse.json({ error: 'Paciente no encontrado' }, { status: 404 });
 
-    db.prepare(`
-      UPDATE users SET firstName = ?, lastName = ?, email = ?, phone = ?, username = ?
-      WHERE id = ?
-    `).run(firstName, lastName, email, phone || null, username, params.id);
+    db.run(
+      'UPDATE users SET firstName = ?, lastName = ?, email = ?, phone = ?, username = ? WHERE id = ?',
+      [firstName, lastName, email, phone || null, username, params.id]
+    );
 
-    registrarAuditoria({
+    await registrarAuditoria({
       adminId: admin.adminId,
       adminUsername: admin.username,
       proyecto: 'medicdata',

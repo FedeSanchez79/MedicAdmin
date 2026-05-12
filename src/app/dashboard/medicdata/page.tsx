@@ -3,25 +3,15 @@ import Header from '@/components/Header';
 import { getMedicDataDb } from '@/lib/db';
 import type { Patient } from '@/types';
 
-function getPatients(): Patient[] {
-  try {
-    const db = getMedicDataDb();
-    return db.prepare(`
-      SELECT id, firstName, lastName, phone, email, username, role, created_at
-      FROM users ORDER BY created_at DESC
-    `).all() as Patient[];
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(msg);
-  }
-}
-
-export default function MedicDataPage() {
+export default async function MedicDataPage() {
   let patients: Patient[] = [];
   let dbError = '';
 
   try {
-    patients = getPatients();
+    const db = await getMedicDataDb();
+    patients = db.all(
+      'SELECT id, firstName, lastName, phone, email, username, role, created_at FROM users ORDER BY created_at DESC'
+    ) as unknown as Patient[];
   } catch (e: unknown) {
     dbError = e instanceof Error ? e.message : String(e);
   }
@@ -78,10 +68,7 @@ export default function MedicDataPage() {
                       {new Date(p.created_at).toLocaleDateString('es-AR')}
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/dashboard/medicdata/${p.id}`}
-                        className="text-azul hover:text-azul-hover text-xs font-semibold"
-                      >
+                      <Link href={`/dashboard/medicdata/${p.id}`} className="text-azul hover:text-azul-hover text-xs font-semibold">
                         Editar
                       </Link>
                     </td>

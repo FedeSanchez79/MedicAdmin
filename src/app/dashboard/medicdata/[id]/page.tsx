@@ -4,34 +4,30 @@ import { getMedicDataDb } from '@/lib/db';
 import type { Patient, MedicalRecord } from '@/types';
 import PatientEditForm from './PatientEditForm';
 
-function getPatientData(id: number): { patient: Patient; records: MedicalRecord[] } | null {
-  const db = getMedicDataDb();
-
-  const patient = db.prepare(`
-    SELECT id, firstName, lastName, phone, email, username, role, created_at
-    FROM users WHERE id = ?
-  `).get(id) as Patient | undefined;
-
-  if (!patient) return null;
-
-  const records = db.prepare(`
-    SELECT mr.*, u.firstName || ' ' || u.lastName as professional_name
-    FROM medical_records mr
-    LEFT JOIN users u ON u.id = mr.professional_id
-    WHERE mr.patient_id = ?
-    ORDER BY mr.created_at DESC
-  `).all(id) as MedicalRecord[];
-
-  return { patient, records };
-}
-
-export default function PatientDetailPage({ params }: { params: { id: string } }) {
+export default async function PatientDetailPage({ params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10);
   if (isNaN(id)) notFound();
 
-  let data: { patient: Patient; records: MedicalRecord[] } | null = null;
+  let patient: Patient | null = null;
+  let records: MedicalRecord[] = [];
+
   try {
-    data = getPatientData(id);
+    const db = await getMedicDataDb();
+
+    patient = db.get(
+      'SELECT id, firstName, lastName, phone, email, username, role, created_at FROM users WHERE id = ?',
+      [id]
+    ) as unknown as Patient | null ?? null;
+
+    if (!patient) notFound();
+
+    records = db.all(
+      `SELECT mr.*, u.firstName || ' ' || u.lastName as professional_name
+       FROM medical_records mr
+       LEFT JOIN users u ON u.id = mr.professional_id
+       WHERE mr.patient_id = ? ORDER BY mr.created_at DESC`,
+      [id]
+    ) as unknown as MedicalRecord[];
   } catch {
     return (
       <div className="bg-error-bg border border-error/20 rounded-xl p-5 text-sm text-error">
@@ -40,9 +36,7 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
     );
   }
 
-  if (!data) notFound();
-
-  const { patient, records } = data;
+  if (!patient) notFound();
 
   return (
     <div>

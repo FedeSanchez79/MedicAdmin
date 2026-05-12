@@ -2,31 +2,24 @@ import Header from '@/components/Header';
 import { getAdminDb } from '@/lib/db';
 import type { AuditEntry } from '@/types';
 
-function getAuditLog(): AuditEntry[] {
-  const db = getAdminDb();
-  return db.prepare(`
-    SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 500
-  `).all() as AuditEntry[];
-}
-
-const projectColors: Record<string, string> = {
-  medicdata: 'bg-azul-suave text-azul',
-  medicprofessionals: 'bg-verde-bg text-verde',
-};
-
-const accionColors: Record<string, string> = {
-  MODIFICAR: 'bg-warning-bg text-warning',
-  CREAR: 'bg-verde-bg text-verde',
-  ELIMINAR: 'bg-error-bg text-error',
-};
-
-export default function AuditPage() {
+export default async function AuditPage() {
   let entries: AuditEntry[] = [];
   try {
-    entries = getAuditLog();
+    const db = await getAdminDb();
+    entries = db.all('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 500') as unknown as AuditEntry[];
   } catch {
     entries = [];
   }
+
+  const projectColors: Record<string, string> = {
+    medicdata: 'bg-azul-suave text-azul',
+    medicprofessionals: 'bg-verde-bg text-verde',
+  };
+  const accionColors: Record<string, string> = {
+    MODIFICAR: 'bg-warning-bg text-warning',
+    CREAR: 'bg-verde-bg text-verde',
+    ELIMINAR: 'bg-error-bg text-error',
+  };
 
   return (
     <div>
