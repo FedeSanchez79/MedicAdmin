@@ -1,4 +1,4 @@
-import { getAdminDb } from '@/lib/db';
+import { getAdminDb, getMedicDataDb, getMedicProfessionalsDb } from '@/lib/db';
 import Header from '@/components/Header';
 
 const projectColors: Record<string, string> = {
@@ -15,6 +15,8 @@ const accionColors: Record<string, string> = {
 export default async function DashboardPage() {
   let totalAudit = 0;
   let lastEntries: { admin_username: string; proyecto: string; accion: string; tabla: string; created_at: string }[] = [];
+  let totalPatients = 0;
+  let totalProfessionals = 0;
 
   try {
     const db = await getAdminDb();
@@ -25,6 +27,22 @@ export default async function DashboardPage() {
     ) as typeof lastEntries;
   } catch {
     // DB not yet initialized
+  }
+
+  try {
+    const medicDataDb = await getMedicDataDb();
+    const row = medicDataDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'patient'");
+    totalPatients = row ? Number(row.c) : 0;
+  } catch {
+    // DB not configured or unavailable
+  }
+
+  try {
+    const profDb = await getMedicProfessionalsDb();
+    const row = profDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'professional'");
+    totalProfessionals = row ? Number(row.c) : 0;
+  } catch {
+    // DB not configured or unavailable
   }
 
   const statCards = [
@@ -49,6 +67,28 @@ export default async function DashboardPage() {
         </svg>
       ),
       bg: 'bg-verde-bg',
+    },
+    {
+      label: 'Pacientes registrados',
+      value: totalPatients,
+      icon: (
+        <svg className="w-6 h-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+      bg: 'bg-warning-bg',
+    },
+    {
+      label: 'Profesionales registrados',
+      value: totalProfessionals,
+      icon: (
+        <svg className="w-6 h-6 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      ),
+      bg: 'bg-error-bg',
     },
   ];
 

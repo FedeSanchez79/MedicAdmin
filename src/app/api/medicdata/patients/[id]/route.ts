@@ -53,3 +53,36 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const admin = getAuthFromCookies();
+  if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  try {
+    const db = await getMedicDataDb();
+
+    const previous = db.get(
+      'SELECT id, firstName, lastName, email, username FROM users WHERE id = ?',
+      [params.id]
+    );
+    if (!previous) return NextResponse.json({ error: 'Paciente no encontrado' }, { status: 404 });
+
+    db.run('DELETE FROM users WHERE id = ?', [params.id]);
+
+    await registrarAuditoria({
+      adminId: admin.adminId,
+      adminUsername: admin.username,
+      proyecto: 'medicdata',
+      accion: 'ELIMINAR',
+      tabla: 'users',
+      registroId: params.id,
+      datosAnteriores: previous as Record<string, unknown>,
+      datosNuevos: null,
+      ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}

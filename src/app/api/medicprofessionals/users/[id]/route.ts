@@ -76,3 +76,40 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const admin = getAuthFromCookies();
+  if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  try {
+    const db = await getMedicProfessionalsDb();
+
+    const previous = db.get(
+      `SELECT u.id, u.firstName, u.lastName, u.email, u.username, u.role,
+              pp.especialidad, pp.matricula, pp.institucion
+       FROM users u LEFT JOIN professional_profiles pp ON pp.user_id = u.id
+       WHERE u.id = ?`,
+      [params.id]
+    );
+    if (!previous) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+
+    db.run('DELETE FROM professional_profiles WHERE user_id = ?', [params.id]);
+    db.run('DELETE FROM users WHERE id = ?', [params.id]);
+
+    await registrarAuditoria({
+      adminId: admin.adminId,
+      adminUsername: admin.username,
+      proyecto: 'medicprofessionals',
+      accion: 'ELIMINAR',
+      tabla: 'users',
+      registroId: params.id,
+      datosAnteriores: previous as Record<string, unknown>,
+      datosNuevos: null,
+      ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}

@@ -82,15 +82,11 @@ export class SqlDb {
   }
 }
 
-let adminDbInstance: SqlDb | null = null;
-
 export async function getAdminDb(): Promise<SqlDb> {
-  if (!adminDbInstance) {
-    const dbPath = process.env.ADMIN_DB_PATH || path.join(process.cwd(), 'database', 'medicadmin.db');
-    adminDbInstance = await SqlDb.open(dbPath);
-    await initAdminSchema(adminDbInstance);
-  }
-  return adminDbInstance;
+  const dbPath = process.env.ADMIN_DB_PATH || path.join(process.cwd(), 'database', 'medicadmin.db');
+  const db = await SqlDb.open(dbPath);
+  await initAdminSchema(db);
+  return db;
 }
 
 async function initAdminSchema(db: SqlDb): Promise<void> {
