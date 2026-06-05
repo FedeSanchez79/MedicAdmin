@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getMedicDataDb } from '@/lib/db';
+import { medicDataFetch } from '@/lib/db';
 import { getAuthFromCookies } from '@/lib/auth';
 import { registrarAuditoria } from '@/lib/audit';
 
@@ -9,18 +9,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   try {
     const { tipo, titulo, descripcion, fecha_registro, activo } = await req.json();
-    const db = await getMedicDataDb();
 
-    const previous = db.get(
-      'SELECT id, tipo, titulo, descripcion, fecha_registro, activo FROM medical_records WHERE id = ?',
-      [params.id]
-    );
-    if (!previous) return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
+    const prevRes = await medicDataFetch(`/api/admin/records/${params.id}`);
+    if (prevRes.status === 404) return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
+    const previous = await prevRes.json();
 
-    db.run(
-      'UPDATE medical_records SET tipo = ?, titulo = ?, descripcion = ?, fecha_registro = ?, activo = ? WHERE id = ?',
-      [tipo, titulo, descripcion || null, fecha_registro || null, activo ? 1 : 0, params.id]
-    );
+    const res = await medicDataFetch(`/api/admin/records/${params.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ tipo, titulo, descripcion, fecha_registro, activo }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Error desconocido' }));
+      return NextResponse.json(err, { status: res.status });
+    }
 
     await registrarAuditoria({
       adminId: admin.adminId,
@@ -29,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       accion: 'MODIFICAR',
       tabla: 'medical_records',
       registroId: params.id,
-      datosAnteriores: previous as Record<string, unknown>,
+      datosAnteriores: previous,
       datosNuevos: { tipo, titulo, descripcion, fecha_registro, activo },
       ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
     });

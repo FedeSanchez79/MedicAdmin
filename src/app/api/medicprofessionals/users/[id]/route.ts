@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getMedicProfessionalsDb } from '@/lib/db';
+import { medicProfessionalsFetch } from '@/lib/db';
 import { getAuthFromCookies } from '@/lib/auth';
 import { registrarAuditoria } from '@/lib/audit';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const db = await getMedicProfessionalsDb();
-    const user = db.get(
-      `SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role, u.created_at,
-              pp.especialidad, pp.matricula, pp.institucion
-       FROM users u
-       LEFT JOIN professional_profiles pp ON pp.user_id = u.id
-       WHERE u.id = ?`,
-      [params.id]
-    );
-    if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-    return NextResponse.json(user);
+    const res = await medicProfessionalsFetch(`/api/admin/users/${params.id}`);
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (e: unknown) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
@@ -27,36 +19,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   try {
     const { firstName, lastName, email, phone, username, especialidad, matricula, institucion } = await req.json();
-    const db = await getMedicProfessionalsDb();
 
-    const previous = db.get(
-      `SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role,
-              pp.especialidad, pp.matricula, pp.institucion
-       FROM users u LEFT JOIN professional_profiles pp ON pp.user_id = u.id
-       WHERE u.id = ?`,
-      [params.id]
-    ) as { role: string } | undefined;
+    const prevRes = await medicProfessionalsFetch(`/api/admin/users/${params.id}`);
+    if (prevRes.status === 404) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    const previous = await prevRes.json();
 
-    if (!previous) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-
-    db.run(
-      'UPDATE users SET firstName = ?, lastName = ?, email = ?, phone = ?, username = ? WHERE id = ?',
-      [firstName, lastName, email, phone || null, username, params.id]
-    );
-
-    if (previous.role === 'professional') {
-      const existing = db.get('SELECT id FROM professional_profiles WHERE user_id = ?', [params.id]);
-      if (existing) {
-        db.run(
-          'UPDATE professional_profiles SET especialidad = ?, matricula = ?, institucion = ? WHERE user_id = ?',
-          [especialidad || null, matricula || null, institucion || null, params.id]
-        );
-      } else {
-        db.run(
-          'INSERT INTO professional_profiles (user_id, especialidad, matricula, institucion) VALUES (?, ?, ?, ?)',
-          [params.id, especialidad || null, matricula || null, institucion || null]
-        );
-      }
+    const res = await medicProfessionalsFetch(`/api/admin/users/${params.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ firstName, lastName, email, phone, username, especialidad, matricula, institucion }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Error desconocido' }));
+      return NextResponse.json(err, { status: res.status });
     }
 
     await registrarAuditoria({
@@ -66,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       accion: 'MODIFICAR',
       tabla: 'users',
       registroId: params.id,
-      datosAnteriores: previous as Record<string, unknown>,
+      datosAnteriores: previous,
       datosNuevos: { firstName, lastName, email, phone, username, especialidad, matricula, institucion },
       ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
     });
@@ -82,19 +56,15 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   try {
-    const db = await getMedicProfessionalsDb();
+    const prevRes = await medicProfessionalsFetch(`/api/admin/users/${params.id}`);
+    if (prevRes.status === 404) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    const previous = await prevRes.json();
 
-    const previous = db.get(
-      `SELECT u.id, u.firstName, u.lastName, u.email, u.username, u.role,
-              pp.especialidad, pp.matricula, pp.institucion
-       FROM users u LEFT JOIN professional_profiles pp ON pp.user_id = u.id
-       WHERE u.id = ?`,
-      [params.id]
-    );
-    if (!previous) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-
-    db.run('DELETE FROM professional_profiles WHERE user_id = ?', [params.id]);
-    db.run('DELETE FROM users WHERE id = ?', [params.id]);
+    const res = await medicProfessionalsFetch(`/api/admin/users/${params.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Error desconocido' }));
+      return NextResponse.json(err, { status: res.status });
+    }
 
     await registrarAuditoria({
       adminId: admin.adminId,
@@ -103,7 +73,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       accion: 'ELIMINAR',
       tabla: 'users',
       registroId: params.id,
-      datosAnteriores: previous as Record<string, unknown>,
+      datosAnteriores: previous,
       datosNuevos: null,
       ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
     });

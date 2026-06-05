@@ -6,7 +6,11 @@
       "Bash(Select-String --line-buffered \"Ready|Error|error|warn|EADDRINUSE|localhost|compiled\")",
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:3002\" -TimeoutSec 10 -UseBasicParsing; \"Status: $\\($r.StatusCode\\)\" } catch { \"Error: $_\" })",
       "Bash(npm install *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Recurse -Path src\\\\app -Name)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\admin\\\\onedrive\\\\desktop\\\\medicadmin\" -Recurse -Force)",
+      "Bash(Select-Object -First 100)",
+      "Bash(Format-Table FullName, PSIsContainer)"
     ]
   }
 }

@@ -131,14 +131,35 @@ async function initAdminSchema(db: SqlDb): Promise<void> {
   `);
 }
 
-export async function getMedicDataDb(): Promise<SqlDb> {
-  const dbPath = process.env.MEDICDATA_DB_PATH;
-  if (!dbPath) throw new Error('MEDICDATA_DB_PATH no está configurado en .env.local');
-  return SqlDb.open(path.resolve(dbPath));
+function getAdminHeaders(): Record<string, string> {
+  const secret = process.env.ADMIN_API_SECRET;
+  if (!secret) throw new Error('ADMIN_API_SECRET no está configurado en .env.local');
+  return {
+    'Content-Type': 'application/json',
+    'x-admin-token': secret,
+  };
 }
 
-export async function getMedicProfessionalsDb(): Promise<SqlDb> {
-  const dbPath = process.env.MEDICPROFESSIONALS_DB_PATH;
-  if (!dbPath) throw new Error('MEDICPROFESSIONALS_DB_PATH no está configurado en .env.local');
-  return SqlDb.open(path.resolve(dbPath));
+export async function medicDataFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const baseUrl = process.env.MEDICDATA_URL;
+  if (!baseUrl) throw new Error('MEDICDATA_URL no está configurado en .env.local');
+  return fetch(`${baseUrl}${endpoint}`, {
+    ...options,
+    headers: {
+      ...getAdminHeaders(),
+      ...(options.headers as Record<string, string> ?? {}),
+    },
+  });
+}
+
+export async function medicProfessionalsFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const baseUrl = process.env.MEDICPROFESSIONALS_URL;
+  if (!baseUrl) throw new Error('MEDICPROFESSIONALS_URL no está configurado en .env.local');
+  return fetch(`${baseUrl}${endpoint}`, {
+    ...options,
+    headers: {
+      ...getAdminHeaders(),
+      ...(options.headers as Record<string, string> ?? {}),
+    },
+  });
 }
