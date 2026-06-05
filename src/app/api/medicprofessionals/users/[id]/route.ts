@@ -74,7 +74,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       tabla: 'users',
       registroId: params.id,
       datosAnteriores: previous,
-      datosNuevos: null,
+      datosNuevos: undefined,
       ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
     });
 

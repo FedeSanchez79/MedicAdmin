@@ -89,6 +89,18 @@ export async function getAdminDb(): Promise<SqlDb> {
   return db;
 }
 
+export async function getMedicDataDb(): Promise<SqlDb> {
+  const dbPath = process.env.MEDICDATA_DB_PATH;
+  if (!dbPath) throw new Error('MEDICDATA_DB_PATH no está configurado en .env.local');
+  return SqlDb.open(dbPath);
+}
+
+export async function getMedicProfessionalsDb(): Promise<SqlDb> {
+  const dbPath = process.env.MEDICPROFESSIONALS_DB_PATH;
+  if (!dbPath) throw new Error('MEDICPROFESSIONALS_DB_PATH no está configurado en .env.local');
+  return SqlDb.open(dbPath);
+}
+
 async function initAdminSchema(db: SqlDb): Promise<void> {
   db.exec(`
     CREATE TABLE IF NOT EXISTS admin_users (
