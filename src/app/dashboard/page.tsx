@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { getAdminDb, getMedicDataDb, getMedicProfessionalsDb } from '@/lib/db';
 import Header from '@/components/Header';
 
@@ -12,11 +13,21 @@ const accionColors: Record<string, string> = {
   ELIMINAR: 'bg-error-bg text-error',
 };
 
+interface PendingProfessional {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  matricula: string | null;
+  created_at: string;
+}
+
 export default async function DashboardPage() {
   let totalAudit = 0;
   let lastEntries: { admin_username: string; proyecto: string; accion: string; tabla: string; created_at: string }[] = [];
   let totalPatients = 0;
   let totalProfessionals = 0;
+  let pendingProfessionals: PendingProfessional[] = [];
 
   try {
     const db = await getAdminDb();
@@ -41,6 +52,15 @@ export default async function DashboardPage() {
     const profDb = await getMedicProfessionalsDb();
     const row = profDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'professional'");
     totalProfessionals = row ? Number(row.c) : 0;
+
+    pendingProfessionals = profDb.all(
+      `SELECT u.id, u.first_name as firstName, u.last_name as lastName, u.email, u.created_at,
+              pp.matricula
+       FROM users u
+       LEFT JOIN professional_profiles pp ON pp.user_id = u.id
+       WHERE u.verification_status = 'pendiente'
+       ORDER BY u.created_at DESC`
+    ) as unknown as PendingProfessional[];
   } catch {
     // DB not configured or unavailable
   }
@@ -109,6 +129,35 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {pendingProfessionals.length > 0 && (
+        <div className="bg-white rounded-xl border border-warning/30 mb-8">
+          <div className="px-5 py-4 border-b border-warning/20 bg-warning-bg rounded-t-xl">
+            <h2 className="font-semibold text-warning">
+              Profesionales pendientes de aprobación ({pendingProfessionals.length})
+            </h2>
+          </div>
+          <div className="divide-y divide-borde">
+            {pendingProfessionals.map((p) => (
+              <div key={p.id} className="px-5 py-3 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-texto">{p.firstName} {p.lastName}</p>
+                  <p className="text-xs text-gris">{p.email}{p.matricula ? ` · Mat. ${p.matricula}` : ''}</p>
+                </div>
+                <span className="text-xs text-gris-claro">
+                  {new Date(p.created_at).toLocaleDateString('es-AR')}
+                </span>
+                <Link
+                  href={`/dashboard/medicprofessionals/${p.id}`}
+                  className="text-azul hover:text-azul-hover text-xs font-semibold"
+                >
+                  Revisar
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-borde">
         <div className="px-5 py-4 border-b border-borde">

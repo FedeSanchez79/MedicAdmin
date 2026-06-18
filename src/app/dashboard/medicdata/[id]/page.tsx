@@ -15,7 +15,7 @@ export default async function PatientDetailPage({ params }: { params: { id: stri
     const db = await getMedicDataDb();
 
     patient = db.get(
-      'SELECT id, firstName, lastName, phone, email, username, role, created_at FROM users WHERE id = ?',
+      'SELECT id, firstName, lastName, phone, email, username, role, created_at, banned_at, banned_by, ban_reason FROM users WHERE id = ?',
       [id]
     ) as unknown as Patient | null ?? null;
 

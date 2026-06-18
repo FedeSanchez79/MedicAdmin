@@ -12,6 +12,9 @@ export default function PatientEditForm({ patient }: { patient: Patient }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [banLoading, setBanLoading] = useState(false);
+  const [showBanPrompt, setShowBanPrompt] = useState(false);
+  const [banReason, setBanReason] = useState('');
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,6 +65,46 @@ export default function PatientEditForm({ patient }: { patient: Patient }) {
     }
   }
 
+  async function handleBan() {
+    setBanLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/medicdata/patients/${patient.id}/ban`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: banReason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al banear');
+      setShowBanPrompt(false);
+      setBanReason('');
+      router.refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al banear');
+    } finally {
+      setBanLoading(false);
+    }
+  }
+
+  async function handleUnban() {
+    setBanLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/medicdata/patients/${patient.id}/unban`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al reactivar');
+      router.refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al reactivar');
+    } finally {
+      setBanLoading(false);
+    }
+  }
+
   return (
     <div className="bg-white rounded-xl border border-borde">
       <div className="px-5 py-4 border-b border-borde">
@@ -97,6 +140,73 @@ export default function PatientEditForm({ patient }: { patient: Patient }) {
 
       <div className="px-5 pb-5 flex flex-col gap-2">
         <hr className="border-borde mb-1" />
+
+        {patient.banned_at ? (
+          <div className="bg-warning-bg border border-warning/20 rounded-lg p-4 mb-2">
+            <p className="text-sm font-semibold text-warning">Usuario baneado</p>
+            <p className="text-xs text-gris mt-1">
+              Fecha: {new Date(patient.banned_at).toLocaleString('es-AR')}
+            </p>
+            {patient.ban_reason && (
+              <p className="text-xs text-gris mt-0.5">Motivo: {patient.ban_reason}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleUnban}
+              disabled={banLoading}
+              className="mt-3 w-full py-2.5 border border-verde text-verde bg-white hover:bg-verde-bg
+                         font-semibold rounded-lg text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {banLoading ? 'Reactivando...' : 'Reactivar usuario'}
+            </button>
+          </div>
+        ) : (
+          <>
+            {showBanPrompt ? (
+              <div className="bg-warning-bg border border-warning/20 rounded-lg p-4 mb-2">
+                <p className="text-sm font-semibold text-warning mb-2">Banear usuario</p>
+                <input
+                  type="text"
+                  placeholder="Motivo del ban (opcional)"
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-borde bg-white text-texto text-sm
+                             focus:outline-none focus:ring-2 focus:ring-warning focus:border-transparent transition mb-3"
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowBanPrompt(false); setBanReason(''); }}
+                    disabled={banLoading}
+                    className="flex-1 py-2.5 border border-borde text-texto font-semibold rounded-lg
+                               text-sm hover:bg-fondo transition disabled:opacity-60"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBan}
+                    disabled={banLoading}
+                    className="flex-1 py-2.5 bg-warning hover:bg-yellow-700 text-white font-semibold rounded-lg
+                               text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {banLoading ? 'Baneando...' : 'Confirmar ban'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowBanPrompt(true)}
+                className="w-full py-2.5 border border-warning text-warning bg-white hover:bg-warning-bg
+                           font-semibold rounded-lg text-sm transition"
+              >
+                Banear usuario
+              </button>
+            )}
+          </>
+        )}
+
         <button
           type="button"
           onClick={() => setShowConfirm(true)}

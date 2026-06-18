@@ -13,7 +13,9 @@ export default async function ProfessionalDetailPage({ params }: { params: { id:
   try {
     const db = await getMedicProfessionalsDb();
     professional = db.get(
-      `SELECT u.id, u.firstName, u.lastName, u.phone, u.email, u.username, u.role, u.created_at,
+      `SELECT u.id, u.first_name as firstName, u.last_name as lastName, u.phone, u.email,
+              u.username, u.role, u.created_at, u.verification_status,
+              u.banned_at, u.banned_by, u.ban_reason,
               pp.especialidad, pp.matricula, pp.institucion
        FROM users u
        LEFT JOIN professional_profiles pp ON pp.user_id = u.id

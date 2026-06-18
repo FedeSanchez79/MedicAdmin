@@ -26,7 +26,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const res = await medicProfessionalsFetch(`/api/admin/users/${params.id}`, {
       method: 'PUT',
-      body: JSON.stringify({ firstName, lastName, email, phone, username, especialidad, matricula, institucion }),
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone,
+        username,
+        especialidad,
+        matricula,
+        institucion,
+      }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Error desconocido' }));

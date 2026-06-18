@@ -14,6 +14,9 @@ export interface Patient {
   username: string;
   role: string;
   created_at: string;
+  banned_at: string | null;
+  banned_by: number | null;
+  ban_reason: string | null;
 }
 
 export interface MedicalRecord {
@@ -43,6 +46,10 @@ export interface Professional {
   matricula: string | null;
   institucion: string | null;
   created_at: string;
+  verification_status: 'pendiente' | 'aprobado' | 'rechazado' | null;
+  banned_at: string | null;
+  banned_by: number | null;
+  ban_reason: string | null;
 }
 
 export interface AuditEntry {
