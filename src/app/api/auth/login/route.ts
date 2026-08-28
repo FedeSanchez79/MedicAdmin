@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const db = await getAdminDb();
-    const admin = db.get('SELECT id, username, password, nombre FROM admin_users WHERE username = ?', [username]) as
+    const admin = await db.get('SELECT id, username, password, nombre FROM admin_users WHERE username = ?', [username]) as
       { id: number; username: string; password: string; nombre: string } | undefined;
 
     if (!admin) {

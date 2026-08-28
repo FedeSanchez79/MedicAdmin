@@ -4,6 +4,8 @@ import { getMedicDataDb } from '@/lib/db';
 import type { Patient, MedicalRecord } from '@/types';
 import PatientEditForm from './PatientEditForm';
 
+export const dynamic = 'force-dynamic';
+
 export default async function PatientDetailPage({ params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10);
   if (isNaN(id)) notFound();
@@ -14,14 +16,14 @@ export default async function PatientDetailPage({ params }: { params: { id: stri
   try {
     const db = await getMedicDataDb();
 
-    patient = db.get(
+    patient = await db.get(
       'SELECT id, firstName, lastName, phone, email, username, role, created_at, banned_at, banned_by, ban_reason FROM users WHERE id = ?',
       [id]
     ) as unknown as Patient | null ?? null;
 
     if (!patient) notFound();
 
-    records = db.all(
+    records = await db.all(
       `SELECT mr.*, u.firstName || ' ' || u.lastName as professional_name
        FROM medical_records mr
        LEFT JOIN users u ON u.id = mr.professional_id

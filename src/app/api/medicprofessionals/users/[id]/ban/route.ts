@@ -11,14 +11,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const { reason } = await req.json();
     const db = await getMedicProfessionalsDb();
 
-    const previous = db.get(
+    const previous = await db.get(
       'SELECT id, banned_at, banned_by, ban_reason FROM users WHERE id = ?',
       [params.id]
     );
     if (!previous) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
 
-    db.run(
-      "UPDATE users SET banned_at = datetime('now'), banned_by = ?, ban_reason = ? WHERE id = ?",
+    await db.run(
+      "UPDATE users SET banned_at = now(), banned_by = ?, ban_reason = ? WHERE id = ?",
       [admin.adminId, reason || null, params.id]
     );
 

@@ -4,6 +4,8 @@ import { getMedicProfessionalsDb } from '@/lib/db';
 import type { Professional } from '@/types';
 import ProfessionalEditForm from './ProfessionalEditForm';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ProfessionalDetailPage({ params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10);
   if (isNaN(id)) notFound();
@@ -12,7 +14,7 @@ export default async function ProfessionalDetailPage({ params }: { params: { id:
 
   try {
     const db = await getMedicProfessionalsDb();
-    professional = db.get(
+    professional = await db.get(
       `SELECT u.id, u.first_name as firstName, u.last_name as lastName, u.phone, u.email,
               u.username, u.role, u.created_at, u.verification_status,
               u.banned_at, u.banned_by, u.ban_reason,

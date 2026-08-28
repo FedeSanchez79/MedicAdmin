@@ -2,11 +2,13 @@ import Header from '@/components/Header';
 import { getAdminDb } from '@/lib/db';
 import type { AuditEntry } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AuditPage() {
   let entries: AuditEntry[] = [];
   try {
     const db = await getAdminDb();
-    entries = db.all('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 500') as unknown as AuditEntry[];
+    entries = await db.all('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 500') as unknown as AuditEntry[];
   } catch {
     entries = [];
   }

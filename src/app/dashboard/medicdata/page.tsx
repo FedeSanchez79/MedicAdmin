@@ -3,13 +3,15 @@ import { getMedicDataDb } from '@/lib/db';
 import type { Patient } from '@/types';
 import PatientsTable from './PatientsTable';
 
+export const dynamic = 'force-dynamic';
+
 export default async function MedicDataPage() {
   let patients: Patient[] = [];
   let dbError = '';
 
   try {
     const db = await getMedicDataDb();
-    patients = db.all(
+    patients = await db.all(
       'SELECT id, firstName, lastName, phone, email, username, role, created_at, banned_at, banned_by, ban_reason FROM users ORDER BY created_at DESC'
     ) as unknown as Patient[];
   } catch (e: unknown) {

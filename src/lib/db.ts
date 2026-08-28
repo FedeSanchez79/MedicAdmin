@@ -1,151 +1,135 @@
 import 'server-only';
-import initSqlJs from 'sql.js';
-import fs from 'fs';
-import path from 'path';
+import { Pool } from 'pg';
 
-type SqlRow = Record<string, string | number | null | Uint8Array>;
+let pool: Pool | null = null;
 
-let SqlJs: Awaited<ReturnType<typeof initSqlJs>> | null = null;
-
-async function getSqlJs() {
-  if (!SqlJs) {
-    SqlJs = await initSqlJs({
-      locateFile: (file: string) =>
-        path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', file),
+function getPool(): Pool {
+  if (!pool) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL no está configurado');
+    }
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      connectionTimeoutMillis: 8000,
     });
   }
-  return SqlJs;
+  return pool;
 }
 
+// Traduce placeholders estilo sqlite ("?") a placeholders de Postgres ($1, $2, ...)
+function toPgParams(sql: string): string {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+type SqlParam = string | number | boolean | null | undefined;
+type SqlRow = Record<string, unknown>;
+
+// Wrapper con la misma interfaz que se usaba con sql.js (get/all/run/exec),
+// para no reescribir cada consulta de las rutas y páginas del panel.
+// Ahora es async porque habla por red con Postgres — todo caller pasó a usar
+// `await db.get/all/run(...)`.
 export class SqlDb {
-  private db: InstanceType<Awaited<ReturnType<typeof initSqlJs>>['Database']>;
-  private filePath: string;
+  constructor(private schema: string) {}
 
-  private constructor(db: any, filePath: string) {
-    this.db = db;
-    this.filePath = filePath;
-  }
-
-  static async open(filePath: string): Promise<SqlDb> {
-    const SQL = await getSqlJs();
-    const absPath = path.resolve(filePath);
-    const dir = path.dirname(absPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    let db: any;
-    if (fs.existsSync(absPath)) {
-      const buf = fs.readFileSync(absPath);
-      db = new SQL.Database(buf);
-    } else {
-      db = new SQL.Database();
+  private async query(sql: string, params: SqlParam[] = []) {
+    const client = await getPool().connect();
+    try {
+      await client.query(`SET search_path TO ${this.schema}, public`);
+      return await client.query(toPgParams(sql), params);
+    } finally {
+      client.release();
     }
-    return new SqlDb(db, absPath);
   }
 
-  exec(sql: string): void {
-    this.db.run(sql);
-    this.persist();
+  async exec(sql: string): Promise<void> {
+    await this.query(sql);
   }
 
-  run(sql: string, params: (string | number | null | undefined)[] = []): void {
-    this.db.run(sql, params as any);
-    this.persist();
+  async run(sql: string, params: SqlParam[] = []): Promise<void> {
+    await this.query(sql, params);
   }
 
-  get(sql: string, params: (string | number | null | undefined)[] = []): SqlRow | undefined {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params as any);
-    const found = stmt.step();
-    const row = found ? (stmt.getAsObject() as SqlRow) : undefined;
-    stmt.free();
-    return row;
+  async get(sql: string, params: SqlParam[] = []): Promise<SqlRow | undefined> {
+    const r = await this.query(sql, params);
+    return r.rows[0] as SqlRow | undefined;
   }
 
-  all(sql: string, params: (string | number | null | undefined)[] = []): SqlRow[] {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params as any);
-    const rows: SqlRow[] = [];
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject() as SqlRow);
-    }
-    stmt.free();
-    return rows;
+  async all(sql: string, params: SqlParam[] = []): Promise<SqlRow[]> {
+    const r = await this.query(sql, params);
+    return r.rows as SqlRow[];
   }
+}
 
-  private persist(): void {
-    const data = this.db.export();
-    fs.writeFileSync(this.filePath, Buffer.from(data));
-  }
+async function initAdminSchema(db: SqlDb): Promise<void> {
+  await db.exec(`
+    CREATE SCHEMA IF NOT EXISTS medicadmin;
 
-  close(): void {
-    this.db.close();
-  }
+    CREATE TABLE IF NOT EXISTS medicadmin.admin_users (
+      id          SERIAL PRIMARY KEY,
+      username    TEXT UNIQUE NOT NULL,
+      password    TEXT NOT NULL,
+      nombre      TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS medicadmin.reset_tokens (
+      id          SERIAL PRIMARY KEY,
+      token       TEXT UNIQUE NOT NULL,
+      expires_at  TIMESTAMPTZ NOT NULL,
+      used        INTEGER DEFAULT 0,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS medicadmin.audit_log (
+      id                SERIAL PRIMARY KEY,
+      admin_id          INTEGER NOT NULL,
+      admin_username    TEXT NOT NULL,
+      proyecto          TEXT NOT NULL,
+      accion            TEXT NOT NULL,
+      tabla             TEXT NOT NULL,
+      registro_id       TEXT,
+      datos_anteriores  TEXT,
+      datos_nuevos      TEXT,
+      ip_address        TEXT,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE OR REPLACE FUNCTION medicadmin.no_mutate_audit() RETURNS trigger AS $f$
+    BEGIN
+      RAISE EXCEPTION 'El registro de auditoria es inmutable';
+    END;
+    $f$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS no_update_audit ON medicadmin.audit_log;
+    CREATE TRIGGER no_update_audit BEFORE UPDATE ON medicadmin.audit_log
+      FOR EACH ROW EXECUTE FUNCTION medicadmin.no_mutate_audit();
+
+    DROP TRIGGER IF EXISTS no_delete_audit ON medicadmin.audit_log;
+    CREATE TRIGGER no_delete_audit BEFORE DELETE ON medicadmin.audit_log
+      FOR EACH ROW EXECUTE FUNCTION medicadmin.no_mutate_audit();
+  `);
 }
 
 export async function getAdminDb(): Promise<SqlDb> {
-  const dbPath = process.env.ADMIN_DB_PATH || path.join(process.cwd(), 'database', 'medicadmin.db');
-  const db = await SqlDb.open(dbPath);
+  const db = new SqlDb('medicadmin');
   await initAdminSchema(db);
   return db;
 }
 
 export async function getMedicDataDb(): Promise<SqlDb> {
-  const dbPath = process.env.MEDICDATA_DB_PATH;
-  if (!dbPath) throw new Error('MEDICDATA_DB_PATH no está configurado en .env.local');
-  return SqlDb.open(dbPath);
+  return new SqlDb('medicdata');
 }
 
 export async function getMedicProfessionalsDb(): Promise<SqlDb> {
-  const dbPath = process.env.MEDICPROFESSIONALS_DB_PATH;
-  if (!dbPath) throw new Error('MEDICPROFESSIONALS_DB_PATH no está configurado en .env.local');
-  return SqlDb.open(dbPath);
-}
-
-async function initAdminSchema(db: SqlDb): Promise<void> {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS admin_users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      nombre TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS reset_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token TEXT UNIQUE NOT NULL,
-      expires_at DATETIME NOT NULL,
-      used INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      admin_id INTEGER NOT NULL,
-      admin_username TEXT NOT NULL,
-      proyecto TEXT NOT NULL,
-      accion TEXT NOT NULL,
-      tabla TEXT NOT NULL,
-      registro_id TEXT,
-      datos_anteriores TEXT,
-      datos_nuevos TEXT,
-      ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TRIGGER IF NOT EXISTS no_update_audit
-      BEFORE UPDATE ON audit_log
-      BEGIN SELECT RAISE(ABORT, 'El registro de auditoria es inmutable'); END;
-
-    CREATE TRIGGER IF NOT EXISTS no_delete_audit
-      BEFORE DELETE ON audit_log
-      BEGIN SELECT RAISE(ABORT, 'El registro de auditoria es inmutable'); END;
-  `);
+  return new SqlDb('medicprofessionals');
 }
 
 function getAdminHeaders(): Record<string, string> {
   const secret = process.env.ADMIN_API_SECRET;
-  if (!secret) throw new Error('ADMIN_API_SECRET no está configurado en .env.local');
+  if (!secret) throw new Error('ADMIN_API_SECRET no está configurado');
   return {
     'Content-Type': 'application/json',
     'x-admin-token': secret,
@@ -154,7 +138,7 @@ function getAdminHeaders(): Record<string, string> {
 
 export async function medicDataFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const baseUrl = process.env.MEDICDATA_URL;
-  if (!baseUrl) throw new Error('MEDICDATA_URL no está configurado en .env.local');
+  if (!baseUrl) throw new Error('MEDICDATA_URL no está configurado');
   return fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers: {
@@ -166,7 +150,7 @@ export async function medicDataFetch(endpoint: string, options: RequestInit = {}
 
 export async function medicProfessionalsFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
   const baseUrl = process.env.MEDICPROFESSIONALS_URL;
-  if (!baseUrl) throw new Error('MEDICPROFESSIONALS_URL no está configurado en .env.local');
+  if (!baseUrl) throw new Error('MEDICPROFESSIONALS_URL no está configurado');
   return fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers: {

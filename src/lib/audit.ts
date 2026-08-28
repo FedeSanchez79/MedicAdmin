@@ -14,7 +14,7 @@ interface AuditParams {
 
 export async function registrarAuditoria(params: AuditParams): Promise<void> {
   const db = await getAdminDb();
-  db.run(
+  await db.run(
     `INSERT INTO audit_log
       (admin_id, admin_username, proyecto, accion, tabla, registro_id, datos_anteriores, datos_nuevos, ip_address)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    db.run(
+    await db.run(
       'INSERT INTO reset_tokens (token, expires_at) VALUES (?, ?)',
       [token, expiresAt]
     );

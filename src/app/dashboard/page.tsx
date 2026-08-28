@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { getAdminDb, getMedicDataDb, getMedicProfessionalsDb } from '@/lib/db';
 import Header from '@/components/Header';
 
+export const dynamic = 'force-dynamic';
+
 const projectColors: Record<string, string> = {
   medicdata: 'bg-azul-suave text-azul',
   medicprofessionals: 'bg-verde-bg text-verde',
@@ -31,9 +33,9 @@ export default async function DashboardPage() {
 
   try {
     const db = await getAdminDb();
-    const row = db.get('SELECT COUNT(*) as c FROM audit_log');
+    const row = await db.get('SELECT COUNT(*) as c FROM audit_log');
     totalAudit = row ? Number(row.c) : 0;
-    lastEntries = db.all(
+    lastEntries = await db.all(
       'SELECT admin_username, proyecto, accion, tabla, created_at FROM audit_log ORDER BY created_at DESC LIMIT 5'
     ) as typeof lastEntries;
   } catch {
@@ -42,7 +44,7 @@ export default async function DashboardPage() {
 
   try {
     const medicDataDb = await getMedicDataDb();
-    const row = medicDataDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'patient'");
+    const row = await medicDataDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'patient'");
     totalPatients = row ? Number(row.c) : 0;
   } catch {
     // DB not configured or unavailable
@@ -50,10 +52,10 @@ export default async function DashboardPage() {
 
   try {
     const profDb = await getMedicProfessionalsDb();
-    const row = profDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'professional'");
+    const row = await profDb.get("SELECT COUNT(*) as c FROM users WHERE role = 'professional'");
     totalProfessionals = row ? Number(row.c) : 0;
 
-    pendingProfessionals = profDb.all(
+    pendingProfessionals = await profDb.all(
       `SELECT u.id, u.first_name as firstName, u.last_name as lastName, u.email, u.created_at,
               pp.matricula
        FROM users u

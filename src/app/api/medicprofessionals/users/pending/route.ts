@@ -4,7 +4,7 @@ import { getMedicProfessionalsDb } from '@/lib/db';
 export async function GET() {
   try {
     const db = await getMedicProfessionalsDb();
-    const users = db.all(
+    const users = await db.all(
       `SELECT u.id, u.first_name as firstName, u.last_name as lastName, u.phone, u.email,
               u.username, u.role, u.created_at, u.verification_status,
               pp.especialidad, pp.matricula, pp.institucion

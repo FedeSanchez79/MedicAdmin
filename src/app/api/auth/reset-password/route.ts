@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const db = await getAdminDb();
-    const row = db.get(
+    const row = await db.get(
       'SELECT id, expires_at, used FROM reset_tokens WHERE token = ?',
       [token]
     ) as { id: number; expires_at: string; used: number } | undefined;
@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 10);
 
-    db.run('UPDATE admin_users SET password = ?', [hashed]);
-    db.run('UPDATE reset_tokens SET used = 1 WHERE id = ?', [row.id]);
+    await db.run('UPDATE admin_users SET password = ?', [hashed]);
+    await db.run('UPDATE reset_tokens SET used = 1 WHERE id = ?', [row.id]);
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

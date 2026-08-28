@@ -10,13 +10,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const db = await getMedicProfessionalsDb();
 
-    const previous = db.get(
+    const previous = await db.get(
       'SELECT id, verification_status FROM users WHERE id = ?',
       [params.id]
     );
     if (!previous) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
 
-    db.run(
+    await db.run(
       "UPDATE users SET verification_status = 'aprobado' WHERE id = ?",
       [params.id]
     );

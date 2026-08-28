@@ -3,13 +3,15 @@ import { getMedicProfessionalsDb } from '@/lib/db';
 import type { Professional } from '@/types';
 import ProfessionalsTable from './ProfessionalsTable';
 
+export const dynamic = 'force-dynamic';
+
 export default async function MedicProfessionalsPage() {
   let professionals: Professional[] = [];
   let dbError = '';
 
   try {
     const db = await getMedicProfessionalsDb();
-    professionals = db.all(
+    professionals = await db.all(
       `SELECT u.id, u.first_name as firstName, u.last_name as lastName, u.phone, u.email,
               u.username, u.role, u.created_at, u.verification_status,
               u.banned_at, u.banned_by, u.ban_reason,
